@@ -1,0 +1,5 @@
+langchain-google-genai>=0.0.5
+python-dotenv>=1.0.0
+asyncio>=3.4.3
+typing-extensions>=4.7.1
+browser-use>=0.1.0  # This is a placeholder name, replace with actual package name
