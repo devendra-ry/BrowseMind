@@ -1,0 +1,77 @@
+# Ignore compiled files
+*.o
+*.ko
+*.obj
+*.so
+*.dll
+
+# Ignore backup files
+*~
+*.bak
+*.swp
+.DS_Store # macOS
+
+# Ignore build directories
+build/
+dist/
+bin/
+
+# Ignore dependencies directory (common for Node.js)
+node_modules/
+
+# Ignore logs and databases
+*.log
+*.sql
+*.sqlite
+
+# Ignore editor/IDE specific files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Ignore sensitive files
+.env
+.env.*
+config.json # Or other config files containing secrets
+
+# Ignore temporary files
+tmp/
+temp/
+
+# Ignore package manager files (common for Node.js, Python, Ruby)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+Pipfile.lock
+Gemfile.lock
+
+# Ignore test/coverage reports
+coverage/
+.nyc_output/
+
+# Ignore system files
+Thumbs.db # Windows
+
+# Ignore user-specific files
+.bash_history
+.zsh_history
+
+# Ignore compressed archives
+*.zip
+*.tar
+*.tar.gz
+*.rar
+
+# Ignore executable files
+*.exe
+*.app
+
+# Ignore documentation output
+docs/
+
+# Ignore generated files
+*.lock
+
+# Ignore specific files
+my_secret_key.pem
