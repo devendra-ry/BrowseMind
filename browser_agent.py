@@ -182,7 +182,7 @@ async def main():
             args.max_steps = 1
         progress = ProgressReporter(args.max_steps)
         
-        llm_model_name = "gemini-1.5-flash-latest" 
+        llm_model_name = "gemini-2.5-flash-preview-04-17" 
         logger.info(f"Initializing LLM with model: {llm_model_name}")
         llm = ChatGoogleGenerativeAI(
             model=llm_model_name,
