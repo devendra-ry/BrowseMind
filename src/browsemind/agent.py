@@ -46,6 +46,9 @@ class Agent:
             elif action_name == "click":
                 selector = f'[browsemind-id="{args.get("id")}"]'
                 await page.click(selector)
+            elif action_name == "press_enter":
+                selector = f'[browsemind-id="{args.get("id")}"]'
+                await page.press(selector, "Enter")
             elif action_name == "summarize":
                 # This is a placeholder. A more robust implementation would
                 # involve another LLM call to summarize the content.

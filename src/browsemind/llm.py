@@ -20,6 +20,7 @@ Available actions:
 - navigate(url: str): Navigates to the given URL.
 - type(id: int, text: str): Types text into the element with the specified `browsemind-id`.
 - click(id: int): Clicks on the element with the specified `browsemind-id`.
+- press_enter(id: int): Presses the Enter key on the element with the specified `browsemind-id`.
 - summarize(): Summarizes the current page content.
 - finish(result: str): Finishes the task and returns the result.
 
