@@ -18,9 +18,8 @@ Your response must be a JSON object wrapped in a ```json ... ``` code block with
 
 Available actions:
 - navigate(url: str): Navigates to the given URL.
-- type(id: int, text: str): Types text into the element with the specified `browsemind-id`.
+- type(id: int, text: str, press_enter_after: bool): Types text into the element with the specified `browsemind-id`. Set `press_enter_after` to true to submit a form or search.
 - click(id: int): Clicks on the element with the specified `browsemind-id`.
-- press_enter(id: int): Presses the Enter key on the element with the specified `browsemind-id`.
 - summarize(): Summarizes the current page content.
 - finish(result: str): Finishes the task and returns the result.
 
