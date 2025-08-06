@@ -6,10 +6,9 @@ import re
 from browsemind.config import AgentConfig
 from browsemind.exceptions import LLMError
 
-SYSTEM_PROMPT = """
-You are an expert AI browsing agent. Your goal is to perform a task based on the user's request.
+SYSTEM_PROMPT = """You are an expert AI browsing agent. Your goal is to perform a task based on the user's request.
 You will be given the current page content and a list of interactable elements, each with a unique `browsemind-id`.
-Your response must be a JSON object with the following schema:
+Your response must be a JSON object wrapped in a ```json ... ``` code block with the following schema:
 {{
     "action": "action_name",
     "args": {{
@@ -68,11 +67,12 @@ async def get_next_action(
         content = response.content
         content_str = str(content)
 
-        json_match = re.search(r"\{.*\}", content_str, re.DOTALL)
+        # Use a regex to find the JSON object within the ```json ... ``` block
+        json_match = re.search(r"```json\n(.*?)\n```", content_str, re.DOTALL)
         if not json_match:
             raise LLMError(f"No JSON object found in LLM response. Response was: {content_str}")
 
-        json_string = json_match.group(0)
+        json_string = json_match.group(1)
         return json.loads(json_string)
     except json.JSONDecodeError as e:
         raise LLMError(f"Failed to decode JSON from LLM. Response: {content_str}. Error: {e}") from e
