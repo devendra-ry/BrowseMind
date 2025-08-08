@@ -75,3 +75,30 @@ docs/
 
 # Ignore specific files
 my_secret_key.pem
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+.pytest_cache
+.ipynb_checkpoints
+.mypy_cache/
+.mypy_cache
+.dmypy.json
+dmypy.json
+
+# Ignore tox test environments
+.tox/
+
+# Ignore virtual environments
+venv/
+env/
+.venv/
+.env/
