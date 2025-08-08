@@ -1,8 +1,9 @@
 """Core agent logic for the BrowseMind application."""
 
+import asyncio
 import logging
 
-from playwright.async_api import Browser
+from playwright.async_api import Browser, Page
 
 from browsemind.browser import get_page_content
 from browsemind.config import AgentConfig
@@ -18,10 +19,30 @@ class Agent:
     """
 
     def __init__(self, task: str, config: AgentConfig):
+        # Validate task input
+        if not isinstance(task, str):
+            raise BrowseMindError("Task must be a string", "INVALID_TASK_TYPE")
+
+        if len(task) > config.max_task_length:
+            raise BrowseMindError(
+                f"Task length ({len(task)}) exceeds maximum allowed length ({config.max_task_length})",
+                "TASK_TOO_LONG",
+            )
+
         self.task = task
         self.config = config
         self.llm = get_llm(config)
         logger.info(f"Agent initialized with task: {task}")
+
+    async def _set_page_timeouts(self, page: Page) -> None:
+        """Set timeouts for browser page operations."""
+        try:
+            # Set default timeout for navigation and actions
+            page.set_default_timeout(self.config.browser_navigation_timeout)
+            page.set_default_navigation_timeout(self.config.browser_navigation_timeout)
+            logger.debug(f"Set page timeouts to {self.config.browser_navigation_timeout}ms")
+        except Exception as e:
+            logger.warning(f"Failed to set page timeouts: {e}")
 
     async def run(self, browser: Browser) -> str:
         """
@@ -38,6 +59,7 @@ class Agent:
         """
         try:
             page = await browser.new_page()
+            await self._set_page_timeouts(page)
             await page.goto("about:blank")
             logger.info("Browser page initialized successfully")
         except Exception as e:
@@ -49,8 +71,26 @@ class Agent:
         for iteration in range(self.config.max_iterations):
             logger.info(f"Starting iteration {iteration + 1}/{self.config.max_iterations}")
             try:
-                page_content = await get_page_content(page)
+                # Apply timeout to page content retrieval
+                page_content = await asyncio.wait_for(
+                    get_page_content(page),
+                    timeout=self.config.browser_action_timeout / 1000.0,  # Convert to seconds
+                )
                 logger.debug(f"Retrieved page content (length: {len(page_content)})")
+
+                # Check content length
+                if len(page_content) > self.config.max_page_content_length:
+                    logger.warning(
+                        f"Page content length ({len(page_content)}) exceeds maximum allowed length "
+                        f"({self.config.max_page_content_length}). Truncating content."
+                    )
+                    page_content = page_content[: self.config.max_page_content_length]
+            except TimeoutError:
+                logger.error(f"Timeout while retrieving page content at iteration {iteration}")
+                raise BrowseMindError(
+                    f"Timeout while retrieving page content at iteration {iteration}",
+                    "CONTENT_TIMEOUT_ERROR",
+                ) from None
             except Exception as e:
                 logger.error(f"Failed to get page content at iteration {iteration}: {e}")
                 raise BrowseMindError(
@@ -58,8 +98,18 @@ class Agent:
                 ) from e
 
             try:
-                action = await get_next_action(self.llm, page_content, self.task)
+                # Apply timeout to LLM call
+                action = await asyncio.wait_for(
+                    get_next_action(self.llm, page_content, self.task, self.config),
+                    timeout=self.config.llm_request_timeout,
+                )
                 logger.debug(f"Received action from LLM: {action}")
+            except TimeoutError:
+                logger.error(f"Timeout while getting next action from LLM at iteration {iteration}")
+                raise LLMError(
+                    f"Timeout while getting next action from LLM at iteration {iteration}",
+                    "LLM_TIMEOUT_ERROR",
+                ) from None
             except LLMError:
                 # Re-raise LLM errors as they are already properly formatted
                 raise
@@ -95,8 +145,18 @@ class Agent:
                 if isinstance(url, str):
                     try:
                         logger.info(f"Navigating to URL: {url}")
-                        await page.goto(url)
+                        # Apply timeout to navigation
+                        await asyncio.wait_for(
+                            page.goto(url),
+                            timeout=self.config.browser_navigation_timeout
+                            / 1000.0,  # Convert to seconds
+                        )
                         logger.info("Navigation completed successfully")
+                    except TimeoutError:
+                        logger.error(f"Timeout while navigating to {url}")
+                        raise BrowseMindError(
+                            f"Timeout while navigating to {url}", "NAVIGATION_TIMEOUT_ERROR"
+                        ) from None
                     except Exception as e:
                         logger.error(f"Failed to navigate to {url}: {e}")
                         raise BrowseMindError(
@@ -114,11 +174,25 @@ class Agent:
                     try:
                         selector = f'[browsemind-id="{element_id}"]'
                         logger.info(f"Typing '{text}' into element {element_id}")
-                        await page.type(selector, text)
+                        # Apply timeout to typing
+                        await asyncio.wait_for(
+                            page.type(selector, text),
+                            timeout=self.config.browser_action_timeout
+                            / 1000.0,  # Convert to seconds
+                        )
                         if args.get("press_enter_after", False):
                             logger.info("Pressing Enter after typing")
-                            await page.press(selector, "Enter")
+                            await asyncio.wait_for(
+                                page.press(selector, "Enter"),
+                                timeout=self.config.browser_action_timeout
+                                / 1000.0,  # Convert to seconds
+                            )
                         logger.info("Typing completed successfully")
+                    except TimeoutError:
+                        logger.error(f"Timeout while typing into element {element_id}")
+                        raise BrowseMindError(
+                            f"Timeout while typing into element {element_id}", "TYPE_TIMEOUT_ERROR"
+                        ) from None
                     except Exception as e:
                         logger.error(f"Failed to type into element {element_id}: {e}")
                         raise BrowseMindError(
@@ -138,8 +212,18 @@ class Agent:
                     try:
                         selector = f'[browsemind-id="{element_id}"]'
                         logger.info(f"Clicking element {element_id}")
-                        await page.click(selector)
+                        # Apply timeout to click
+                        await asyncio.wait_for(
+                            page.click(selector),
+                            timeout=self.config.browser_action_timeout
+                            / 1000.0,  # Convert to seconds
+                        )
                         logger.info("Click completed successfully")
+                    except TimeoutError:
+                        logger.error(f"Timeout while clicking element {element_id}")
+                        raise BrowseMindError(
+                            f"Timeout while clicking element {element_id}", "CLICK_TIMEOUT_ERROR"
+                        ) from None
                     except Exception as e:
                         logger.error(f"Failed to click element {element_id}: {e}")
                         raise BrowseMindError(
@@ -155,9 +239,18 @@ class Agent:
                 # involve another LLM call to summarize the content.
                 try:
                     logger.info("Summarizing page content")
-                    result = await page.inner_text("body")
+                    # Apply timeout to summarization
+                    result = await asyncio.wait_for(
+                        page.inner_text("body"),
+                        timeout=self.config.browser_action_timeout / 1000.0,  # Convert to seconds
+                    )
                     logger.info("Summarization completed successfully")
                     return str(result)
+                except TimeoutError:
+                    logger.error("Timeout while summarizing page content")
+                    raise BrowseMindError(
+                        "Timeout while summarizing page content", "SUMMARIZE_TIMEOUT_ERROR"
+                    ) from None
                 except Exception as e:
                     logger.error(f"Failed to summarize page content: {e}")
                     raise BrowseMindError(

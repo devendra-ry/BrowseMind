@@ -33,6 +33,42 @@ app = typer.Typer(
 console = Console()
 
 
+def _validate_task_input(task: str, config: AgentConfig) -> str:
+    """
+    Validate and sanitize the task input.
+
+    Args:
+        task: The task string to validate
+        config: The agent configuration
+
+    Returns:
+        The validated task string
+
+    Raises:
+        BrowseMindError: If the task is invalid
+    """
+    if not isinstance(task, str):
+        raise BrowseMindError("Task must be a string", "INVALID_TASK_TYPE")
+
+    if not task.strip():
+        raise BrowseMindError("Task cannot be empty", "EMPTY_TASK")
+
+    # Trim whitespace
+    task = task.strip()
+
+    # Check length
+    if len(task) > config.max_task_length:
+        raise BrowseMindError(
+            f"Task length ({len(task)}) exceeds maximum allowed length ({config.max_task_length})",
+            "TASK_TOO_LONG",
+        )
+
+    # Basic sanitization - remove null bytes
+    task = task.replace("\x00", "")
+
+    return task
+
+
 @app.command()
 def run(
     task: str = typer.Argument(..., help="The task for the agent to perform."),
@@ -45,11 +81,26 @@ def run(
     async def _run() -> None:
         try:
             config = AgentConfig.from_env()
-            agent = Agent(task=task, config=config)
+
+            # Validate and sanitize task input
+            try:
+                task_validated = _validate_task_input(task, config)
+            except BrowseMindError as e:
+                logger.error(f"Invalid task input: {e}")
+                console.print(
+                    Panel(
+                        f"[bold red]Invalid Task:[/bold red] {e}",
+                        title="Input Error",
+                        border_style="red",
+                    )
+                )
+                return
+
+            agent = Agent(task=task_validated, config=config)
 
             console.print(
                 Panel(
-                    f"[bold green]Starting Task:[/bold green]\n[yellow]{task}[/yellow]",
+                    f"[bold green]Starting Task:[/bold green]\n[yellow]{task_validated}[/yellow]",
                     title="Agent Initialized",
                     border_style="blue",
                 )

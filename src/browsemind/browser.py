@@ -1,6 +1,8 @@
 """Browser management for the BrowseMind agent."""
 
+import html
 import logging
+import re
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -10,6 +12,63 @@ from playwright.async_api import Browser, Page, async_playwright
 from browsemind.exceptions import BrowserError
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_text_content(text: str) -> str:
+    """
+    Sanitize text content from web pages.
+
+    Args:
+        text: The text to sanitize
+
+    Returns:
+        Sanitized text
+    """
+    if not isinstance(text, str):
+        return ""
+
+    # Remove or replace potentially dangerous characters
+    # Remove null bytes
+    text = text.replace("\x00", "")
+
+    # Limit length (this is also checked elsewhere but as a safety net)
+    if len(text) > 100000:  # 100KB limit for individual text elements
+        text = text[:100000]
+
+    # HTML escape to prevent XSS when displaying
+    text = html.escape(text)
+
+    # Remove excessive whitespace
+    text = re.sub(r"\s+", " ", text)
+
+    return text.strip()
+
+
+def _sanitize_attribute_value(value: str) -> str:
+    """
+    Sanitize attribute values from web elements.
+
+    Args:
+        value: The attribute value to sanitize
+
+    Returns:
+        Sanitized attribute value
+    """
+    if not isinstance(value, str):
+        return ""
+
+    # Remove or replace potentially dangerous characters
+    # Remove null bytes
+    value = value.replace("\x00", "")
+
+    # Limit length
+    if len(value) > 1000:  # 1KB limit for attribute values
+        value = value[:1000]
+
+    # Remove control characters except common ones
+    value = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", value)
+
+    return value.strip()
 
 
 @asynccontextmanager
@@ -82,6 +141,8 @@ async def get_page_content(page: Page) -> str:
 
         try:
             title = await page.title()
+            # Sanitize title
+            title = _sanitize_text_content(title)
             logger.debug(f"Page title: {title}")
         except Exception as e:
             logger.error(f"Failed to get page title: {e}")
@@ -105,15 +166,15 @@ async def get_page_content(page: Page) -> str:
 
         try:
             logger.debug("Retrieving page HTML")
-            html = await page.content()
-            logger.debug(f"Retrieved HTML content (length: {len(html)})")
+            html_content = await page.content()
+            logger.debug(f"Retrieved HTML content (length: {len(html_content)})")
         except Exception as e:
             logger.error(f"Failed to get page HTML: {e}")
             raise BrowserError(f"Failed to get page HTML: {e}", "HTML_CONTENT_ERROR") from e
 
         try:
             logger.debug("Parsing HTML with BeautifulSoup")
-            soup = BeautifulSoup(html, "html.parser")
+            soup = BeautifulSoup(html_content, "html.parser")
             logger.debug("HTML parsed successfully")
         except Exception as e:
             logger.error(f"Failed to parse HTML with BeautifulSoup: {e}")
@@ -136,6 +197,8 @@ async def get_page_content(page: Page) -> str:
         try:
             logger.debug("Extracting text from HTML")
             text = soup.get_text()
+            # Sanitize extracted text
+            text = _sanitize_text_content(text)
             logger.debug(f"Extracted text (length: {len(text)})")
         except Exception as e:
             logger.error(f"Failed to extract text from HTML: {e}")
@@ -159,8 +222,17 @@ async def get_page_content(page: Page) -> str:
             for element in interactable_elements:
                 if isinstance(element, Tag):
                     tag = element.name
+                    # Sanitize tag name
+                    tag = _sanitize_text_content(tag)
+
                     text_content = element.get_text(strip=True)
-                    browsemind_id = element["browsemind-id"]
+                    # Sanitize text content
+                    text_content = _sanitize_text_content(text_content)
+
+                    browsemind_id = element.get("browsemind-id")
+                    # Sanitize attribute value
+                    browsemind_id = _sanitize_attribute_value(str(browsemind_id))
+
                     element_info.append(f'<{tag} browsemind-id="{browsemind_id}"> {text_content}')
             logger.debug(f"Processed {len(element_info)} interactable elements")
         except Exception as e:
