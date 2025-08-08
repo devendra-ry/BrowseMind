@@ -1,7 +1,9 @@
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
 import json
 import re
+from typing import Any
+
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from browsemind.config import AgentConfig
 from browsemind.exceptions import LLMError
@@ -40,7 +42,7 @@ def get_llm(config: AgentConfig) -> ChatGoogleGenerativeAI:
 
 async def get_next_action(
     llm: ChatGoogleGenerativeAI, page_content: str, task: str
-) -> dict:
+) -> dict[str, Any]:
     """
     Gets the next action from the LLM based on the current page content and task.
 
@@ -60,10 +62,8 @@ async def get_next_action(
             ]
         )
         chain = prompt | llm
-        response = await chain.ainvoke(
-            {"page_content": page_content, "task": task}
-        )
-        
+        response = await chain.ainvoke({"page_content": page_content, "task": task})
+
         content = response.content
         content_str = str(content)
 
@@ -73,8 +73,15 @@ async def get_next_action(
             raise LLMError(f"No JSON object found in LLM response. Response was: {content_str}")
 
         json_string = json_match.group(1)
-        return json.loads(json_string)
+        result = json.loads(json_string)
+        # Ensure we return a dict
+        if isinstance(result, dict):
+            return result
+        else:
+            raise LLMError(f"LLM response is not a dictionary: {result}")
     except json.JSONDecodeError as e:
-        raise LLMError(f"Failed to decode JSON from LLM. Response: {content_str}. Error: {e}") from e
+        raise LLMError(
+            f"Failed to decode JSON from LLM. Response: {content_str}. Error: {e}"
+        ) from e
     except Exception as e:
         raise LLMError(f"Failed to get next action from LLM: {e}") from e

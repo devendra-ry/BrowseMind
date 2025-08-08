@@ -52,7 +52,9 @@ def run(
                 )
 
         except BrowseMindError as e:
-            console.print(Panel(f"[bold red]Error:[/bold red] {e}", title="Error", border_style="red"))
+            console.print(
+                Panel(f"[bold red]Error:[/bold red] {e}", title="Error", border_style="red")
+            )
         except Exception as e:
             console.print(
                 Panel(

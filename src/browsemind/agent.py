@@ -1,6 +1,6 @@
 """Core agent logic for the BrowseMind application."""
 
-from playwright.async_api import Browser, Page
+from playwright.async_api import Browser
 
 from browsemind.browser import get_page_content
 from browsemind.config import AgentConfig
@@ -39,18 +39,33 @@ class Agent:
             args = action.get("args", {})
 
             if action_name == "navigate":
-                await page.goto(args.get("url"))
+                url = args.get("url")
+                if isinstance(url, str):
+                    await page.goto(url)
             elif action_name == "type":
-                selector = f'[browsemind-id="{args.get("id")}"]'
-                await page.type(selector, args.get("text"))
-                if args.get("press_enter_after", False):
-                    await page.press(selector, "Enter")
+                element_id = args.get("id")
+                text = args.get("text")
+                if isinstance(element_id, int) and isinstance(text, str):
+                    selector = f'[browsemind-id="{element_id}"]'
+                    await page.type(selector, text)
+                    if args.get("press_enter_after", False):
+                        await page.press(selector, "Enter")
+            elif action_name == "click":
+                element_id = args.get("id")
+                if isinstance(element_id, int):
+                    selector = f'[browsemind-id="{element_id}"]'
+                    await page.click(selector)
             elif action_name == "summarize":
                 # This is a placeholder. A more robust implementation would
                 # involve another LLM call to summarize the content.
-                return await page.inner_text("body")
+                result = await page.inner_text("body")
+                return str(result)
             elif action_name == "finish":
-                return args.get("result", "Task finished.")
+                result = args.get("result", "Task finished.")
+                if isinstance(result, str):
+                    return result
+                else:
+                    return str(result)
             else:
                 raise BrowseMindError(f"Unknown action: {action_name}")
 

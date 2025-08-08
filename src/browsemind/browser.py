@@ -1,10 +1,10 @@
 """Browser management for the BrowseMind agent."""
 
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
-from playwright.async_api import async_playwright, Browser, Page
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
+from playwright.async_api import Browser, Page, async_playwright
 
 from browsemind.exceptions import BrowserError
 
@@ -45,12 +45,14 @@ async def get_page_content(page: Page) -> str:
         title = await page.title()
 
         # Add unique IDs to interactable elements
-        await page.evaluate("""() => {
+        await page.evaluate(
+            """() => {
             const interactableElements = document.querySelectorAll('a, button, input, textarea, select');
             interactableElements.forEach((el, index) => {
                 el.setAttribute('browsemind-id', index + 1);
             });
-        }""")
+        }"""
+        )
 
         html = await page.content()
         soup = BeautifulSoup(html, "html.parser")
@@ -59,16 +61,15 @@ async def get_page_content(page: Page) -> str:
             script_or_style.decompose()
 
         text = soup.get_text()
-        interactable_elements = soup.find_all(attrs={
-            "browsemind-id": True
-        })
+        interactable_elements = soup.find_all(attrs={"browsemind-id": True})
 
         element_info = []
         for element in interactable_elements:
-            tag = element.name
-            text_content = element.get_text(strip=True)
-            browsemind_id = element['browsemind-id']
-            element_info.append(f'<{tag} browsemind-id="{browsemind_id}"> {text_content}')
+            if isinstance(element, Tag):
+                tag = element.name
+                text_content = element.get_text(strip=True)
+                browsemind_id = element["browsemind-id"]
+                element_info.append(f'<{tag} browsemind-id="{browsemind_id}"> {text_content}')
 
         return f"Title: {title}\n\nContent:\n{text}\n\nInteractable Elements:\n" + "\n".join(
             element_info
