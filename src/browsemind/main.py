@@ -9,7 +9,7 @@ from rich.panel import Panel
 from browsemind.agent import Agent
 from browsemind.browser import get_browser
 from browsemind.config import AgentConfig
-from browsemind.exceptions import BrowseMindError
+from browsemind.exceptions import BrowseMindError, BrowserError, ConfigurationError, LLMError
 
 app = typer.Typer(
     name="browsemind",
@@ -51,14 +51,42 @@ def run(
                     )
                 )
 
+        except ConfigurationError as e:
+            console.print(
+                Panel(
+                    f"[bold red]Configuration Error:[/bold red] {e}\nError Code: {e.error_code}",
+                    title="Configuration Error",
+                    border_style="red",
+                )
+            )
+        except BrowserError as e:
+            console.print(
+                Panel(
+                    f"[bold red]Browser Error:[/bold red] {e}\nError Code: {e.error_code}",
+                    title="Browser Error",
+                    border_style="red",
+                )
+            )
+        except LLMError as e:
+            console.print(
+                Panel(
+                    f"[bold red]LLM Error:[/bold red] {e}\nError Code: {e.error_code}",
+                    title="LLM Error",
+                    border_style="red",
+                )
+            )
         except BrowseMindError as e:
             console.print(
-                Panel(f"[bold red]Error:[/bold red] {e}", title="Error", border_style="red")
+                Panel(
+                    f"[bold red]Application Error:[/bold red] {e}\nError Code: {e.error_code}",
+                    title="Application Error",
+                    border_style="red",
+                )
             )
         except Exception as e:
             console.print(
                 Panel(
-                    f"[bold red]An unexpected error occurred:[/bold red] {e}",
+                    f"[bold red]An unexpected error occurred:[/bold red] {e}\n{type(e).__name__}: {str(e)}",
                     title="Critical Error",
                     border_style="red",
                 )
