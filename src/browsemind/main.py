@@ -1,15 +1,29 @@
 """Main entry point for the BrowseMind CLI application."""
 
 import asyncio
+import logging
+import os
 
 import typer
 from rich.console import Console
+from rich.logging import RichHandler
 from rich.panel import Panel
 
 from browsemind.agent import Agent
 from browsemind.browser import get_browser
 from browsemind.config import AgentConfig
 from browsemind.exceptions import BrowseMindError, BrowserError, ConfigurationError, LLMError
+
+# Configure logging
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(
+    level=LOG_LEVEL,
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True, markup=True)],
+)
+
+logger = logging.getLogger(__name__)
 
 app = typer.Typer(
     name="browsemind",
@@ -26,6 +40,7 @@ def run(
     """
     Runs the agent to perform the given task.
     """
+    logger.info(f"Starting BrowseMind with task: {task}")
 
     async def _run() -> None:
         try:
@@ -52,6 +67,7 @@ def run(
                 )
 
         except ConfigurationError as e:
+            logger.error(f"Configuration Error: {e}", exc_info=True)
             console.print(
                 Panel(
                     f"[bold red]Configuration Error:[/bold red] {e}\nError Code: {e.error_code}",
@@ -60,6 +76,7 @@ def run(
                 )
             )
         except BrowserError as e:
+            logger.error(f"Browser Error: {e}", exc_info=True)
             console.print(
                 Panel(
                     f"[bold red]Browser Error:[/bold red] {e}\nError Code: {e.error_code}",
@@ -68,6 +85,7 @@ def run(
                 )
             )
         except LLMError as e:
+            logger.error(f"LLM Error: {e}", exc_info=True)
             console.print(
                 Panel(
                     f"[bold red]LLM Error:[/bold red] {e}\nError Code: {e.error_code}",
@@ -76,6 +94,7 @@ def run(
                 )
             )
         except BrowseMindError as e:
+            logger.error(f"Application Error: {e}", exc_info=True)
             console.print(
                 Panel(
                     f"[bold red]Application Error:[/bold red] {e}\nError Code: {e.error_code}",
@@ -84,6 +103,7 @@ def run(
                 )
             )
         except Exception as e:
+            logger.critical(f"Unexpected error occurred: {e}", exc_info=True)
             console.print(
                 Panel(
                     f"[bold red]An unexpected error occurred:[/bold red] {e}\n{type(e).__name__}: {str(e)}",

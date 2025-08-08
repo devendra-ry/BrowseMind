@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 from typing import Any
 
@@ -7,6 +8,8 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 
 from browsemind.config import AgentConfig
 from browsemind.exceptions import LLMError
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are an expert AI browsing agent. Your goal is to perform a task based on the user's request.
 You will be given the current page content and a list of interactable elements, each with a unique `browsemind-id`.
@@ -69,44 +72,62 @@ async def get_next_action(
     Raises:
         LLMError: If the LLM fails to generate a response or if the response is invalid.
     """
+    logger.info(f"Requesting next action from LLM for task: {task}")
+    logger.debug(f"Page content length: {len(page_content)}")
+
     try:
         try:
+            logger.debug("Creating prompt")
             prompt = ChatPromptTemplate.from_messages(
                 [
                     ("system", SYSTEM_PROMPT),
                     ("human", "Page Content:\n{page_content}\n\nTask: {task}"),
                 ]
             )
+            logger.debug("Prompt created successfully")
         except Exception as e:
+            logger.error(f"Failed to create prompt: {e}")
             raise LLMError(f"Failed to create prompt: {e}", "PROMPT_ERROR") from e
 
         try:
+            logger.debug("Creating chain")
             chain = prompt | llm
+            logger.debug("Chain created successfully")
         except Exception as e:
+            logger.error(f"Failed to create chain: {e}")
             raise LLMError(f"Failed to create chain: {e}", "CHAIN_ERROR") from e
 
         try:
+            logger.debug("Invoking LLM")
             response = await chain.ainvoke({"page_content": page_content, "task": task})
+            logger.debug("LLM invoked successfully")
         except Exception as e:
+            logger.error(f"Failed to invoke LLM: {e}")
             raise LLMError(f"Failed to invoke LLM: {e}", "LLM_INVOKE_ERROR") from e
 
         try:
             content = response.content
             content_str = str(content)
+            logger.debug(f"Response content length: {len(content_str)}")
         except Exception as e:
+            logger.error(f"Failed to extract content from response: {e}")
             raise LLMError(
                 f"Failed to extract content from response: {e}", "CONTENT_EXTRACTION_ERROR"
             ) from e
 
         # Use a regex to find the JSON object within the ```json ... ``` block
         try:
+            logger.debug("Searching for JSON in response")
             json_match = re.search(r"```json\n(.*?)\n```", content_str, re.DOTALL)
+            logger.debug("JSON search completed")
         except Exception as e:
+            logger.error(f"Failed to search for JSON in response: {e}")
             raise LLMError(
                 f"Failed to search for JSON in response: {e}", "JSON_SEARCH_ERROR"
             ) from e
 
         if not json_match:
+            logger.error(f"No JSON object found in LLM response. Response was: {content_str}")
             raise LLMError(
                 f"No JSON object found in LLM response. Response was: {content_str}",
                 "MISSING_JSON_ERROR",
@@ -114,25 +135,33 @@ async def get_next_action(
 
         try:
             json_string = json_match.group(1)
+            logger.debug(f"Extracted JSON string length: {len(json_string)}")
         except Exception as e:
+            logger.error(f"Failed to extract JSON string: {e}")
             raise LLMError(f"Failed to extract JSON string: {e}", "JSON_EXTRACTION_ERROR") from e
 
         try:
+            logger.debug("Parsing JSON")
             result = json.loads(json_string)
+            logger.debug("JSON parsed successfully")
         except json.JSONDecodeError as e:
+            logger.error(f"Failed to decode JSON from LLM. Response: {content_str}. Error: {e}")
             raise LLMError(
                 f"Failed to decode JSON from LLM. Response: {content_str}. Error: {e}",
                 "JSON_DECODE_ERROR",
             ) from e
         except Exception as e:
+            logger.error(f"Failed to parse JSON from LLM: {e}. Response: {content_str}")
             raise LLMError(
                 f"Failed to parse JSON from LLM: {e}. Response: {content_str}", "JSON_PARSE_ERROR"
             ) from e
 
         # Ensure we return a dict
         if isinstance(result, dict):
+            logger.info(f"Successfully extracted action: {result.get('action')}")
             return result
         else:
+            logger.error(f"LLM response is not a dictionary: {result} (type: {type(result)})")
             raise LLMError(
                 f"LLM response is not a dictionary: {result} (type: {type(result)})",
                 "INVALID_RESPONSE_TYPE",
@@ -141,4 +170,5 @@ async def get_next_action(
         # Re-raise LLMErrors as they are already properly formatted
         raise
     except Exception as e:
+        logger.error(f"Failed to get next action from LLM: {e}")
         raise LLMError(f"Failed to get next action from LLM: {e}", "LLM_ACTION_ERROR") from e
